@@ -1,6 +1,9 @@
 """Thin wrapper around the Gemini API for vision description, text embeddings,
 and the final baseline-vs-design comparison call.
 """
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 import httpx
 from google import genai
 from google.genai import errors as genai_errors
@@ -9,19 +12,35 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from . import config
 
-_client: genai.Client | None = None
+_api_key_override: ContextVar[str | None] = ContextVar("gemini_api_key", default=None)
+_clients: dict[str, genai.Client] = {}
+
+
+@contextmanager
+def using_api_key(api_key: str | None):
+    token = _api_key_override.set((api_key or "").strip() or None)
+    try:
+        yield
+    finally:
+        _api_key_override.reset(token)
+
+
+def resolve_api_key() -> str | None:
+    return _api_key_override.get() or config.GEMINI_API_KEY
 
 
 def get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        if not config.GEMINI_API_KEY:
-            raise RuntimeError(
-                "GEMINI_API_KEY is not set. Put it in a .env file at the project "
-                "root or export it as an environment variable."
-            )
-        _client = genai.Client(api_key=config.GEMINI_API_KEY)
-    return _client
+    api_key = resolve_api_key()
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not set. Enter it in the review form, put it in a "
+            ".env file, or export it as an environment variable."
+        )
+    client = _clients.get(api_key)
+    if client is None:
+        client = genai.Client(api_key=api_key)
+        _clients[api_key] = client
+    return client
 
 
 def _is_daily_quota_error(exc: BaseException) -> bool:

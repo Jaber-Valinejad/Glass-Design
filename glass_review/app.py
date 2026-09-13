@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from . import config
+from . import config, gemini_client
 from .review import review_pdf
 from .vector_store import LocalVectorStore
 
@@ -138,7 +138,7 @@ def _list_reports():
     return [item[1] for item in reports]
 
 
-def _run_review(job_id: str, pdf_path: Path):
+def _run_review(job_id: str, pdf_path: Path, api_key: str | None = None):
     def on_progress(event):
         with _lock:
             if _job["id"] != job_id:
@@ -147,7 +147,8 @@ def _run_review(job_id: str, pdf_path: Path):
 
     try:
         on_progress({"message": f"Starting review of {pdf_path.name}...", "step": "start"})
-        report = review_pdf(pdf_path, on_progress=on_progress)
+        with gemini_client.using_api_key(api_key):
+            report = review_pdf(pdf_path, on_progress=on_progress)
         config.REVIEW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         out_path = config.REVIEW_OUTPUT_DIR / f"{pdf_path.stem}_review.md"
         out_path.write_text(report, encoding="utf-8")
@@ -188,6 +189,7 @@ def status():
         {
             "root": str(config.ROOT_DIR),
             "api_key_set": bool(config.GEMINI_API_KEY),
+            "api_key_required": True,
             "baseline_pages": len(store.chunks),
             "baseline_pdfs": len(list(config.BASELINE_PDF_DIR.glob("*.pdf"))) if config.BASELINE_PDF_DIR.exists() else 0,
         }
@@ -241,6 +243,14 @@ def start_review():
         if _job["status"] == "running":
             return jsonify({"error": "A review is already running."}), 409
 
+    api_key = (request.form.get("gemini_api_key") or "").strip()
+    if not api_key and not config.GEMINI_API_KEY:
+        return jsonify(
+            {
+                "error": "Enter your GEMINI_API_KEY. Each person can create one in Google AI Studio."
+            }
+        ), 400
+
     pdf_path = None
     selected = (request.form.get("pdf") or "").strip()
     upload = request.files.get("file")
@@ -276,7 +286,7 @@ def start_review():
 
     if config.IS_VERCEL:
         # Serverless instances do not keep background threads after the response.
-        _run_review(job_id, pdf_path)
+        _run_review(job_id, pdf_path, api_key=api_key)
         with _lock:
             return jsonify(
                 {
@@ -290,7 +300,9 @@ def start_review():
                 }
             )
 
-    thread = threading.Thread(target=_run_review, args=(job_id, pdf_path), daemon=True)
+    thread = threading.Thread(
+        target=_run_review, args=(job_id, pdf_path, api_key), daemon=True
+    )
     thread.start()
     return jsonify({"id": job_id, "status": "running", "filename": pdf_path.name})
 

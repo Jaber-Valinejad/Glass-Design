@@ -74,7 +74,7 @@
       color: var(--muted);
     }
     label { display: block; margin: 0.7rem 0 0.35rem; color: var(--muted); font-size: 0.82rem; }
-    select, input[type="file"] {
+    select, input[type="file"], input[type="password"] {
       width: 100%;
       background: var(--panel-2);
       color: var(--text);
@@ -156,6 +156,9 @@
   <main>
     <section class="card">
       <h2>Run a review</h2>
+      <label for="apiKeyInput">Your GEMINI_API_KEY</label>
+      <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your Gemini API key" />
+      <p class="hint">Anyone can create their own key in <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> (Google account). You do not need this site’s key. The value stays in this browser and is sent only when you start a review.</p>
       <label for="pdfSelect">Existing PDF</label>
       <select id="pdfSelect">
         <option value="">Select a file from test/ or uploads/</option>
@@ -194,6 +197,8 @@
     const reportEl = document.getElementById("report");
     const reportNameEl = document.getElementById("reportName");
     const reportSelect = document.getElementById("reportSelect");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    const KEY_STORE = "gemini_api_key";
     let pollTimer = null;
     let lastLogCount = 0;
 
@@ -207,6 +212,7 @@
       startBtn.disabled = busy;
       pdfSelect.disabled = busy;
       fileInput.disabled = busy;
+      apiKeyInput.disabled = busy;
       startBtn.textContent = busy ? "Review running..." : "Start review";
     }
 
@@ -260,7 +266,7 @@
       const res = await fetch("/api/status");
       const data = await res.json();
       document.getElementById("baselinePages").textContent = data.baseline_pages + " pages";
-      document.getElementById("apiKey").textContent = data.api_key_set ? "ready" : "missing";
+      updateKeyPill();
     }
 
     async function loadLists() {
@@ -306,8 +312,30 @@
       pollTimer = setInterval(pollJob, 1000);
     }
 
+    function updateKeyPill() {
+      const entered = (apiKeyInput.value || "").trim();
+      document.getElementById("apiKey").textContent = entered ? "entered" : "needed";
+    }
+
+    apiKeyInput.value = sessionStorage.getItem(KEY_STORE) || "";
+    apiKeyInput.addEventListener("input", () => {
+      const value = apiKeyInput.value.trim();
+      if (value) sessionStorage.setItem(KEY_STORE, value);
+      else sessionStorage.removeItem(KEY_STORE);
+      updateKeyPill();
+    });
+    updateKeyPill();
+
     startBtn.addEventListener("click", async () => {
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) {
+        progressLabel.textContent = "Enter your GEMINI_API_KEY first.";
+        apiKeyInput.focus();
+        return;
+      }
+      sessionStorage.setItem(KEY_STORE, apiKey);
       const form = new FormData();
+      form.append("gemini_api_key", apiKey);
       if (fileInput.files[0]) form.append("file", fileInput.files[0]);
       else if (pdfSelect.value) form.append("pdf", pdfSelect.value);
       else {
