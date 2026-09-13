@@ -14,7 +14,7 @@ from . import config
 from .review import review_pdf
 from .vector_store import LocalVectorStore
 
-UPLOAD_DIR = config.ROOT_DIR / "uploads"
+UPLOAD_DIR = config.UPLOAD_DIR
 TEST_DIR = config.ROOT_DIR / "test"
 
 app = Flask(__name__, template_folder="templates")
@@ -93,18 +93,49 @@ def _list_review_pdfs():
     return items
 
 
+def _report_dirs():
+    dirs = [config.REVIEW_OUTPUT_DIR, config.COMMITTED_REVIEW_OUTPUT_DIR]
+    seen = set()
+    unique = []
+    for folder in dirs:
+        resolved = folder.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(folder)
+    return unique
+
+
+def _find_report(name: str) -> Path | None:
+    safe = Path(name).name
+    for folder in _report_dirs():
+        path = folder / safe
+        if path.exists() and path.suffix.lower() == ".md":
+            return path
+    return None
+
+
 def _list_reports():
-    if not config.REVIEW_OUTPUT_DIR.exists():
-        return []
     reports = []
-    for path in sorted(config.REVIEW_OUTPUT_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
-        reports.append(
-            {
-                "name": path.name,
-                "modified": datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
-            }
-        )
-    return reports
+    seen = set()
+    for folder in _report_dirs():
+        if not folder.exists():
+            continue
+        for path in folder.glob("*.md"):
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            reports.append(
+                (
+                    path.stat().st_mtime,
+                    {
+                        "name": path.name,
+                        "modified": datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    },
+                )
+            )
+    reports.sort(key=lambda item: item[0], reverse=True)
+    return [item[1] for item in reports]
 
 
 def _run_review(job_id: str, pdf_path: Path):
@@ -190,16 +221,18 @@ def job():
 
 @app.get("/api/reports/<path:name>")
 def get_report(name):
-    safe = Path(name).name
-    path = config.REVIEW_OUTPUT_DIR / safe
-    if not path.exists() or path.suffix.lower() != ".md":
+    path = _find_report(name)
+    if path is None:
         return jsonify({"error": "Report not found."}), 404
-    return jsonify({"name": safe, "markdown": path.read_text(encoding="utf-8")})
+    return jsonify({"name": path.name, "markdown": path.read_text(encoding="utf-8")})
 
 
 @app.get("/reports/<path:name>")
 def download_report(name):
-    return send_from_directory(config.REVIEW_OUTPUT_DIR, Path(name).name, as_attachment=True)
+    path = _find_report(name)
+    if path is None:
+        return jsonify({"error": "Report not found."}), 404
+    return send_from_directory(path.parent, path.name, as_attachment=True)
 
 
 @app.post("/api/review")
@@ -240,6 +273,22 @@ def start_review():
         _job["filename"] = pdf_path.name
         _job["started_at"] = datetime.now().isoformat(timespec="seconds")
         _append_log({"message": f"Queued {pdf_path.name}.", "step": "queue"})
+
+    if config.IS_VERCEL:
+        # Serverless instances do not keep background threads after the response.
+        _run_review(job_id, pdf_path)
+        with _lock:
+            return jsonify(
+                {
+                    "id": _job["id"],
+                    "status": _job["status"],
+                    "filename": _job["filename"],
+                    "report": _job["report"],
+                    "report_name": _job["report_name"],
+                    "logs": list(_job["logs"]),
+                    "error": _job["error"],
+                }
+            )
 
     thread = threading.Thread(target=_run_review, args=(job_id, pdf_path), daemon=True)
     thread.start()

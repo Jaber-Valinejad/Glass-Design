@@ -8,6 +8,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+WRITABLE_DIR = Path("/tmp/glass_review") if IS_VERCEL else ROOT_DIR
 
 BASELINE_PDF_DIR = ROOT_DIR / "pdfs"
 VECTOR_STORE_DIR = ROOT_DIR / "vector_store"
@@ -15,7 +17,9 @@ VECTOR_STORE_IMAGES_DIR = VECTOR_STORE_DIR / "images"
 VECTOR_STORE_INDEX_PATH = VECTOR_STORE_DIR / "index.json"
 VECTOR_STORE_EMBEDDINGS_PATH = VECTOR_STORE_DIR / "embeddings.npy"
 
-REVIEW_OUTPUT_DIR = ROOT_DIR / "review_output"
+COMMITTED_REVIEW_OUTPUT_DIR = ROOT_DIR / "review_output"
+REVIEW_OUTPUT_DIR = WRITABLE_DIR / "review_output"
+UPLOAD_DIR = WRITABLE_DIR / "uploads"
 
 # Gemini models (free-tier eligible on this account). gemini-2.0-flash/-lite and
 # text-embedding-004 returned 0 free quota. The other generateContent models each get

@@ -327,6 +327,14 @@
         progressLabel.textContent = data.error || "Could not start review.";
         return;
       }
+      if (data.logs) renderLogs(data.logs, true);
+      if (data.report) showReport(data.report_name, data.report);
+      if (data.status === "done" || data.status === "error") {
+        updateProgress(data);
+        setBusy(false);
+        if (data.status === "done") loadLists();
+        return;
+      }
       startPolling();
     });
 
