@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "app.py": {
+      "maxDuration": 300
+    },
     "glass_review/app.py": {
       "maxDuration": 300
     }
