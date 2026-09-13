@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Glass Design Review</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #14120f;
+      --panel: #1d1a16;
+      --panel-2: #252018;
+      --line: #3a342a;
+      --text: #efe7d6;
+      --muted: #b3a58a;
+      --accent: #d4a24a;
+      --accent-dim: #8a6a2a;
+      --ok: #7fbf7a;
+      --err: #e07a6a;
+      --warn: #e0b86a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #2a2214 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1.5rem;
+      padding: 1.4rem 1.8rem 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+    }
+    header p { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.9rem; }
+    .pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .pill {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.78rem;
+    }
+    .pill strong { color: var(--text); font-weight: 650; }
+    main {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 1.1rem;
+      padding: 1.1rem 1.8rem 1.8rem;
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.05rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    label { display: block; margin: 0.7rem 0 0.35rem; color: var(--muted); font-size: 0.82rem; }
+    select, input[type="file"] {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem;
+    }
+    button {
+      width: 100%;
+      margin-top: 1rem;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+      background: var(--accent);
+      color: #1a1408;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .hint { margin-top: 0.75rem; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+    .progress-wrap { margin-top: 1rem; }
+    .progress-bar {
+      height: 8px;
+      background: #322b20;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      transition: width 0.3s ease;
+    }
+    .progress-label { margin-top: 0.4rem; color: var(--muted); font-size: 0.8rem; }
+    .log {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.8rem;
+      line-height: 1.55;
+      background: #100e0b;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      min-height: 260px;
+      max-height: 360px;
+      overflow: auto;
+      padding: 0.8rem 0.9rem;
+      white-space: pre-wrap;
+    }
+    .log .ts { color: var(--accent-dim); }
+    .log .err { color: var(--err); }
+    .log .ok { color: var(--ok); }
+    .report {
+      margin-top: 1rem;
+      background: #18150f;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1rem 1.2rem 1.3rem;
+      max-height: 620px;
+      overflow: auto;
+    }
+    .report h1, .report h2, .report h3 { color: var(--accent); }
+    .report p, .report li { color: var(--text); line-height: 1.5; }
+    .empty { color: var(--muted); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Glass Design Review</h1>
+      <p>Compare a shop-drawing PDF against the indexed baseline standards.</p>
+    </div>
+    <div class="pills">
+      <div class="pill">Library <strong id="baselinePages">—</strong></div>
+      <div class="pill">API key <strong id="apiKey">—</strong></div>
+      <div class="pill">Status <strong id="jobStatus">idle</strong></div>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Run a review</h2>
+      <label for="pdfSelect">Existing PDF</label>
+      <select id="pdfSelect">
+        <option value="">Select a file from test/ or uploads/</option>
+      </select>
+      <label for="fileInput">Or upload a PDF</label>
+      <input id="fileInput" type="file" accept="application/pdf,.pdf" />
+      <button id="startBtn" type="button">Start review</button>
+      <div class="progress-wrap">
+        <div class="progress-bar"><span id="bar"></span></div>
+        <div class="progress-label" id="progressLabel">Waiting to start</div>
+      </div>
+      <p class="hint">This is the same reviewer as the command line. A 10-page PDF can take several minutes because each page is described, matched, and compared with Gemini.</p>
+      <label for="reportSelect">Previous reports</label>
+      <select id="reportSelect">
+        <option value="">Open a saved report</option>
+      </select>
+    </section>
+    <section>
+      <div class="card">
+        <h2>Progress log</h2>
+        <div class="log" id="log"><div class="empty">No activity yet. Choose a PDF and start a review.</div></div>
+      </div>
+      <div class="card" style="margin-top:1.1rem">
+        <h2>Review report <span id="reportName"></span></h2>
+        <div class="report" id="report"><div class="empty">The finished report will appear here.</div></div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const progressLabel = document.getElementById("progressLabel");
+    const startBtn = document.getElementById("startBtn");
+    const pdfSelect = document.getElementById("pdfSelect");
+    const fileInput = document.getElementById("fileInput");
+    const reportEl = document.getElementById("report");
+    const reportNameEl = document.getElementById("reportName");
+    const reportSelect = document.getElementById("reportSelect");
+    let pollTimer = null;
+    let lastLogCount = 0;
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+
+    function setBusy(busy) {
+      startBtn.disabled = busy;
+      pdfSelect.disabled = busy;
+      fileInput.disabled = busy;
+      startBtn.textContent = busy ? "Review running..." : "Start review";
+    }
+
+    function renderLogs(logs, replace) {
+      if (replace) {
+        logEl.innerHTML = "";
+        lastLogCount = 0;
+      }
+      if (!logs.length && !logEl.innerHTML) {
+        logEl.innerHTML = '<div class="empty">No activity yet. Choose a PDF and start a review.</div>';
+        return;
+      }
+      const next = logs.slice(lastLogCount);
+      if (!next.length) return;
+      if (logEl.querySelector(".empty")) logEl.innerHTML = "";
+      next.forEach((entry) => {
+        const line = document.createElement("div");
+        const klass = entry.level === "error" || entry.step === "error"
+          ? "err"
+          : entry.step === "done" ? "ok" : "";
+        line.className = klass;
+        line.innerHTML = `<span class="ts">${escapeHtml(entry.ts)}</span>  ${escapeHtml(entry.message)}`;
+        logEl.appendChild(line);
+      });
+      lastLogCount = logs.length;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateProgress(job) {
+      document.getElementById("jobStatus").textContent = job.status || "idle";
+      const total = job.total || 0;
+      const page = job.page || 0;
+      if (job.status === "running" && total) {
+        const pct = Math.min(100, Math.round((page / total) * 100));
+        barEl.style.width = pct + "%";
+        progressLabel.textContent = `Reviewing page ${page} of ${total}`;
+      } else if (job.status === "done") {
+        barEl.style.width = "100%";
+        progressLabel.textContent = "Review complete";
+      } else if (job.status === "error") {
+        progressLabel.textContent = job.error || "Review failed";
+      }
+    }
+
+    function showReport(name, markdown) {
+      reportNameEl.textContent = name ? "— " + name : "";
+      reportEl.innerHTML = markdown ? marked.parse(markdown) : '<div class="empty">The finished report will appear here.</div>';
+    }
+
+    async function loadStatus() {
+      const res = await fetch("/api/status");
+      const data = await res.json();
+      document.getElementById("baselinePages").textContent = data.baseline_pages + " pages";
+      document.getElementById("apiKey").textContent = data.api_key_set ? "ready" : "missing";
+    }
+
+    async function loadLists() {
+      const res = await fetch("/api/pdfs");
+      const data = await res.json();
+      pdfSelect.innerHTML = '<option value="">Select a file from test/ or uploads/</option>';
+      data.pdfs.forEach((pdf) => {
+        const opt = document.createElement("option");
+        opt.value = pdf.name;
+        opt.textContent = `${pdf.name}  (${pdf.source}, ${pdf.size_kb} KB)`;
+        pdfSelect.appendChild(opt);
+      });
+      reportSelect.innerHTML = '<option value="">Open a saved report</option>';
+      data.reports.forEach((report) => {
+        const opt = document.createElement("option");
+        opt.value = report.name;
+        opt.textContent = `${report.name}  (${report.modified})`;
+        reportSelect.appendChild(opt);
+      });
+    }
+
+    async function pollJob() {
+      const res = await fetch("/api/job");
+      const job = await res.json();
+      renderLogs(job.logs || [], false);
+      updateProgress(job);
+      if (job.report) showReport(job.report_name, job.report);
+      if (job.status === "running") {
+        setBusy(true);
+      } else {
+        setBusy(false);
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        if (job.status === "done") loadLists();
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollJob();
+      pollTimer = setInterval(pollJob, 1000);
+    }
+
+    startBtn.addEventListener("click", async () => {
+      const form = new FormData();
+      if (fileInput.files[0]) form.append("file", fileInput.files[0]);
+      else if (pdfSelect.value) form.append("pdf", pdfSelect.value);
+      else {
+        progressLabel.textContent = "Choose or upload a PDF first.";
+        return;
+      }
+      lastLogCount = 0;
+      logEl.innerHTML = "";
+      showReport("", "");
+      barEl.style.width = "4%";
+      progressLabel.textContent = "Starting...";
+      setBusy(true);
+      const res = await fetch("/api/review", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setBusy(false);
+        progressLabel.textContent = data.error || "Could not start review.";
+        return;
+      }
+      startPolling();
+    });
+
+    reportSelect.addEventListener("change", async () => {
+      if (!reportSelect.value) return;
+      const res = await fetch("/api/reports/" + encodeURIComponent(reportSelect.value));
+      const data = await res.json();
+      if (data.markdown) showReport(data.name, data.markdown);
+    });
+
+    loadStatus();
+    loadLists();
+    startPolling();
+  </script>
+</body>
+</html>
