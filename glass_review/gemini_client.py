@@ -78,16 +78,15 @@ with_rate_limit_retry = retry(
 
 
 def _call_with_model_fallback(model_candidates: list[str], call_fn):
-    """Try call_fn(model) over each candidate model, skipping to the next one as soon
-    as a model's free-tier *daily* cap is hit. Per-minute 429s/network errors are
-    retried on the same model via with_rate_limit_retry before falling through.
+    """Try each candidate model in order. Skip to the next model when one hits
+    its daily cap (429) or is retired/not found (404).
     """
     last_exc: Exception | None = None
     for model in model_candidates:
         try:
             return with_rate_limit_retry(call_fn)(model)
         except genai_errors.ClientError as exc:
-            if _is_daily_quota_error(exc):
+            if _is_daily_quota_error(exc) or getattr(exc, "code", None) == 404:
                 last_exc = exc
                 continue
             raise
