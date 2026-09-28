@@ -27,11 +27,10 @@ UPLOAD_DIR = WRITABLE_DIR / "uploads"
 # so vision/comparison calls try each of these in order and move to the next model
 # once one hits its daily cap (see gemini_client._is_daily_quota_error).
 VISION_MODEL_CANDIDATES = [
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-3-flash-preview",
     "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
 ]
 COMPARISON_MODEL_CANDIDATES = VISION_MODEL_CANDIDATES
 EMBEDDING_MODEL = "gemini-embedding-001"
