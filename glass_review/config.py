@@ -21,11 +21,9 @@ COMMITTED_REVIEW_OUTPUT_DIR = ROOT_DIR / "review_output"
 REVIEW_OUTPUT_DIR = WRITABLE_DIR / "review_output"
 UPLOAD_DIR = WRITABLE_DIR / "uploads"
 
-# Gemini models (free-tier eligible on this account). gemini-2.0-flash/-lite and
-# text-embedding-004 returned 0 free quota. The other generateContent models each get
-# their own small free-tier bucket (observed: 20 requests/day per model on this key),
-# so vision/comparison calls try each of these in order and move to the next model
-# once one hits its daily cap (see gemini_client._is_daily_quota_error).
+# Gemini models. gemini-2.5-flash-lite was retired for new users (404), so it
+# has been removed. Calls try each model in order and move to the next one
+# once a model hits its daily cap (see gemini_client._is_daily_quota_error).
 VISION_MODEL_CANDIDATES = [
     "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
